@@ -1,13 +1,11 @@
 # playground
 
-FIXME: write description
+Collection of utility functions and experimental code.
 
-## Usage
-
-FIXME: write
+Mostly just a place to stash various Clojure utility functions.
 
 ## License
 
-Copyright (C) 2011 FIXME
+Copyright (C) 2011 Marshall T. Vandegrift
 
 Distributed under the Eclipse Public License, the same as Clojure.
