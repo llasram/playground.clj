@@ -1,5 +1,6 @@
 (ns playground.util
-  (:import [java.util.concurrent BlockingQueue LinkedBlockingQueue TimeUnit]
+  (:import [clojure.lang IFn ILookup IObj Seqable]
+           [java.util.concurrent BlockingQueue LinkedBlockingQueue TimeUnit]
            [java.lang.ref WeakReference]))
 
 (set! *warn-on-reflection* true)
@@ -14,6 +15,13 @@
      (when-let [coll (seq coll)]
        (let [item (first coll)]
          (if (pred item) item (recur pred (rest coll)))))))
+
+(defn fkeep
+  "Returns the first non-nil result of applying f to the items in coll."
+  ([f coll]
+     (when-let [coll (seq coll)]
+       (let [item (f (first coll))]
+         (if-not (nil? item) item (recur f (rest coll)))))))
 
 ;; Stolen from clojure/core.clj
 (defmacro assert-args [& pairs]
@@ -136,10 +144,7 @@ evaluated at macro-expansion time."
   `(case ~e
      ~@(concat
         (mapcat (fn [[test result]]
-                  [(if (or (list? test) (symbol? test))
-                     (eval test)
-                     test)
-                   result])
+                  [(eval `(let [test# ~test] test#)) result])
                 (partition 2 clauses))
         (when (odd? (count clauses))
           (list (last clauses))))))
@@ -213,3 +218,117 @@ results to return out-of-order."
          (drain))))
   ([f coll & colls]
      (pmap-ooo #(apply f %) (apply map vector coll colls))))
+
+(defmacro assoc-keys [map & syms]
+  "The inverse of the {:keys [...]} binding form -- assoc the keyword form of
+each symbol in syms with the bound value of that symbol."
+  `(assoc ~map ~@(mapcat (fn [x] [(keyword x) x]) syms)))
+
+(defmacro let-bean [bindings & body]
+  "Eh.  Probably not worth it."
+  (assert-args
+      (vector? bindings) "a vector for its binding"
+      (= 2 (count bindings)) "exactly 2 forms in binding vector")
+  (letfn [(title-case [s] (str (.toUpperCase (subs s 0 1)) (subs s 1)))
+          (bean-getter [s] (->> (.split (str s) "-") (map title-case)
+                                (apply str "get") symbol))]
+    (let [[syms expr] bindings, bean (gensym "bean__")]
+      `(let [~bean ~expr
+             ~@(mapcat (fn [sym] [sym (list '. bean (bean-getter sym))]) syms)]
+         ~@body))))
+
+(defn starts-with?
+  "Does string s begin with the provided prefix?"
+  {:inline (fn [s prefix & to]
+             `(let [^String s# ~s, ^String prefix# ~prefix]
+                (.startsWith s# prefix# ~@(when (seq to) [`(int ~@to)]))))
+   :inline-arities #{2 3}}
+  ([s prefix] (.startsWith ^String s ^String prefix))
+  ([s prefix to] (.startsWith ^String s ^String prefix (int to))))
+
+(defn with-starts?
+  "Does string s begin with the provided prefix?"
+  {:inline (fn [prefix s & to]
+             `(let [^String s# ~s, ^String prefix# ~prefix]
+                (.startsWith s# prefix# ~@(when (seq to) [`(int ~@to)]))))
+   :inline-arities #{2 3}}
+  ([prefix s] (.startsWith ^String s ^String prefix))
+  ([prefix s to] (.startsWith ^String s ^String prefix (int to))))
+
+(defn index-of
+  "Find index of string subs in string s, or -1 if not found."
+  {:inline (fn [s subs & fi]
+             `(let [^String s# ~s, ^String subs# ~subs]
+                (.indexOf s# subs# ~@(when (seq fi) [`(int ~@fi)]))))
+   :inline-arities #{2 3}}
+  ([s subs] (.indexOf ^String s ^String subs))
+  ([s subs fi] (.indexOf ^String s ^String subs (int fi))))
+
+(deftype HierSet [meta contains? contents parents]
+  Object
+  (toString [this]
+    (str contents))
+
+  IObj
+  (meta [this] meta)
+  (withMeta [this meta]
+    (HierSet. meta contains? contents parents))
+
+  ILookup
+  (valAt [this key]
+    (let [sibling (first (rsubseq contents <= key))
+          ancestors-of (fn ancestors-of [k]
+                         (when k (cons k (lazy-seq (ancestors-of (parents k))))))
+          not-ancestor? (fn [k] (not (contains? k key)))]
+      (->> (ancestors-of sibling) (drop-while not-ancestor?) seq)))
+  (valAt [this key not-found]
+    (or (.valAt this key) not-found))
+
+  IFn
+  (invoke [this key]
+    (get this key))
+  (invoke [this key not-found]
+    (get this key not-found))
+
+  Seqable
+  (seq [this] (seq contents)))
+
+(defn hier-set-by
+  "As hier-set, but specifying the comparator to use for element comparison."
+  ([contains? comparator & keys]
+     (letfn [(find-parent [[parents ancestors] key]
+               (let [not-ancestor? (fn [k] (not (contains? k key)))
+                     ancestors (drop-while not-ancestor? ancestors)]
+                 [(assoc parents key (first ancestors)) (cons key ancestors)]))]
+       (let [contents (apply sorted-set-by comparator keys)
+             parents (first (reduce find-parent [{} ()] contents))]
+         (HierSet. nil contains? contents parents)))))
+
+(defn hier-set
+  "Constructs a set in which the elements are both linearly sorted and may
+hierarchically contain subsequent elements.  The contains? predicate defines
+the hierachical relationship, with the following two constraints: (a) elements
+must sort prior to any elements they contain; and (b) an ancestor element must
+contain all elements which sort between it and any descendant element.
+
+Lookup in the set returns a seq of all in-set ancestors of the provided key, or
+nil if the provided key is not a descendant of any set member."
+  ([contains? & keys]
+     (apply hier-set-by contains? compare keys)))
+
+(defn threeven?
+  "Checks if an integral number is evenly divisible by three."
+  ([n] (zero? (mod n 3))))
+
+(defmacro with-acquire [bindings & body]
+  "Like with-open, but provide form triples in the binding vector: binding
+target, resource-acquisition form, and resource-release form."
+  (assert-args
+    (threeven? (count bindings)) "a threeven number of forms in binding vector")
+  (if-not (seq bindings)
+    `(do ~@body)
+    (let [[x acq rel & more] bindings]
+      `(let [~x ~acq]
+         (try
+           (with-acquire ~more ~@body)
+           (finally ~rel))))))
