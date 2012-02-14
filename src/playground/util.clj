@@ -7,21 +7,21 @@
 
 (defmacro ignore-errors
   "Returns the result of evaluating body, or nil if it throws an exception."
-  ([& body] `(try ~@body (catch java.lang.Exception _# nil))))
+  [& body] `(try ~@body (catch java.lang.Exception _# nil)))
 
 (defn ffilter
   "Returns the first item in coll for which (pred item) is true."
-  ([pred coll]
-     (when-let [coll (seq coll)]
-       (let [item (first coll)]
-         (if (pred item) item (recur pred (rest coll)))))))
+  [pred coll]
+  (when-let [coll (seq coll)]
+    (let [item (first coll)]
+      (if (pred item) item (recur pred (rest coll))))))
 
 (defn fkeep
   "Returns the first non-nil result of applying f to the items in coll."
-  ([f coll]
-     (when-let [coll (seq coll)]
-       (let [item (f (first coll))]
-         (if-not (nil? item) item (recur f (rest coll)))))))
+  [f coll]
+  (when-let [coll (seq coll)]
+    (let [item (f (first coll))]
+      (if-not (nil? item) item (recur f (rest coll))))))
 
 ;; Stolen from clojure/core.clj
 (defmacro assert-args [& pairs]
@@ -38,21 +38,21 @@
 
 Evaluates expr, and evaluates body with its result bound to the binding-form.
 Returns the result of expr."
-  ([bindings & body]
-     (assert-args
-       (vector? bindings) "a vector for its binding"
-       (= 2 (count bindings)) "exactly 2 forms in binding vector")
-     (let [[bf expr] bindings]
-       `(let [value# ~expr]
-          (let [~bf value#]
-            ~@body value#)))))
+  [bindings & body]
+  (assert-args
+      (vector? bindings) "a vector for its binding"
+      (= 2 (count bindings)) "exactly 2 forms in binding vector")
+  (let [[bf expr] bindings]
+    `(let [value# ~expr]
+       (let [~bf value#]
+         ~@body value#))))
 
 (defmacro prog1
   "Evaluates the result of expr, then evaluates the forms in body (presumably
 for side-effects), then returns the result of expr."
-  ([expr & body]
-     `(let [value# ~expr]
-        ~@body value#)))
+  [expr & body]
+  `(let [value# ~expr]
+     ~@body value#))
 
 (defmacro ->>+
   "binding => [name]
@@ -83,33 +83,33 @@ Inserts the resulting form recursively into any subsequent forms."
   this is possible.  fill-queue will return a lazy seq of the values
   filler-func has pushed onto the queue, blocking if needed until each
   next element becomes available.  filler-func's return value is ignored."
-  ([filler-func & optseq]
-    (let [opts (apply array-map optseq)
-          apoll (:alive-poll opts 1)
-          q (LinkedBlockingQueue. ^Integer (:queue-size opts 100))
-          NIL (Object.) ;nil sentinel since LBQ doesn't support nils
-          weak-target (Object.)
-          alive? (WeakReference. weak-target)
-          fill (fn fill [x]
-                 (if (.get alive?)
-                   (if (.offer q (if (nil? x) NIL x) apoll TimeUnit/SECONDS)
-                     x
-                     (recur x))
-                   (throw (Exception. "abandoned"))))
-          f (future
-              (try
-                (filler-func fill)
-                (finally
-                  (.put q q))) ;q itself is eos sentinel
-              nil)] ; set future's value to nil
-      ((fn drain []
-         weak-target ; force closing over this object
-         (lazy-seq
-           (let [x (.take q)]
-             (if (identical? x q)
-               @f  ;will be nil, touch just to propagate errors
-               (cons (if (identical? x NIL) nil x)
-                     (drain))))))))))
+  [filler-func & optseq]
+  (let [opts (apply array-map optseq)
+        apoll (:alive-poll opts 1)
+        q (LinkedBlockingQueue. ^Integer (:queue-size opts 100))
+        NIL (Object.) ;nil sentinel since LBQ doesn't support nils
+        weak-target (Object.)
+        alive? (WeakReference. weak-target)
+        fill (fn fill [x]
+               (if (.get alive?)
+                 (if (.offer q (if (nil? x) NIL x) apoll TimeUnit/SECONDS)
+                   x
+                   (recur x))
+                 (throw (Exception. "abandoned"))))
+        f (future
+            (try
+              (filler-func fill)
+              (finally
+               (.put q q))) ;q itself is eos sentinel
+            nil)] ; set future's value to nil
+    ((fn drain []
+       weak-target ; force closing over this object
+       (lazy-seq
+        (let [x (.take q)]
+          (if (identical? x q)
+            @f  ;will be nil, touch just to propagate errors
+            (cons (if (identical? x NIL) nil x)
+                  (drain)))))))))
 
 (defn update
   "Like update-in, but only for a single key"
@@ -121,11 +121,11 @@ Inserts the resulting form recursively into any subsequent forms."
 (defn assoc-conj
   "Return a new collection conj-ing val into the collection found at key,
 placing def there if no value was present already."
-  ([map key def val] (assoc map key (conj (get map key def) val))))
+  [map key def val] (assoc map key (conj (get map key def) val)))
 
 (defn assoc-in-conj
   "Like assoc-conj for assoc-in."
-  ([map keys def val] (assoc-in map keys (conj (get-in map keys def) val))))
+  [map keys def val] (assoc-in map keys (conj (get-in map keys def) val)))
 
 (defn map-group
   "Like group-by, except f should return a [key val] pair, and val will be
@@ -149,12 +149,13 @@ evaluated at macro-expansion time."
         (when (odd? (count clauses))
           (list (last clauses))))))
 
-(defmacro defmulti-group [& forms]
+(defmacro defmulti-group
   "Define a group of related multimethods."
-  `(do ~@(map #(cons 'defmulti %) forms)))
+  [& forms] `(do ~@(map #(cons 'defmulti %) forms)))
 
-(defmacro defmethod-group [& specs]
+(defmacro defmethod-group
   "Implement a group of related multimethods sharing common dispatch values."
+  [& specs]
   (letfn [(parse-impls [specs]
             (lazy-seq
              (when (seq specs)
@@ -170,11 +171,11 @@ evaluated at macro-expansion time."
   [& colls] (apply map vector colls))
 
 ;;; Taken with modification from /Joy of Clojure/ pg. 283
-(defn seq1 [s]
+(defn seq1
   "De-chunk potentially-chunked seq s, realizing only one element at a time."
-  (lazy-seq
-   (when (seq s)
-     (cons (first s) (seq1 (rest s))))))
+  [s] (lazy-seq
+       (when (seq s)
+         (cons (first s) (seq1 (rest s))))))
 
 (defmacro duration [& body]
   `(let [start# (System/currentTimeMillis)]
@@ -219,13 +220,14 @@ results to return out-of-order."
   ([f coll & colls]
      (pmap-ooo #(apply f %) (apply map vector coll colls))))
 
-(defmacro assoc-keys [map & syms]
+(defmacro assoc-keys
   "The inverse of the {:keys [...]} binding form -- assoc the keyword form of
 each symbol in syms with the bound value of that symbol."
-  `(assoc ~map ~@(mapcat (fn [x] [(keyword x) x]) syms)))
+  [map & syms] `(assoc ~map ~@(mapcat (fn [x] [(keyword x) x]) syms)))
 
-(defmacro let-bean [bindings & body]
+(defmacro let-bean
   "Eh.  Probably not worth it."
+  [bindings & body]
   (assert-args
       (vector? bindings) "a vector for its binding"
       (= 2 (count bindings)) "exactly 2 forms in binding vector")
@@ -295,14 +297,14 @@ each symbol in syms with the bound value of that symbol."
 
 (defn hier-set-by
   "As hier-set, but specifying the comparator to use for element comparison."
-  ([contains? comparator & keys]
-     (letfn [(find-parent [[parents ancestors] key]
-               (let [not-ancestor? (fn [k] (not (contains? k key)))
-                     ancestors (drop-while not-ancestor? ancestors)]
-                 [(assoc parents key (first ancestors)) (cons key ancestors)]))]
-       (let [contents (apply sorted-set-by comparator keys)
-             parents (first (reduce find-parent [{} ()] contents))]
-         (HierSet. nil contains? contents parents)))))
+  [contains? comparator & keys]
+  (letfn [(find-parent [[parents ancestors] key]
+            (let [not-ancestor? (fn [k] (not (contains? k key)))
+                  ancestors (drop-while not-ancestor? ancestors)]
+              [(assoc parents key (first ancestors)) (cons key ancestors)]))]
+    (let [contents (apply sorted-set-by comparator keys)
+          parents (first (reduce find-parent [{} ()] contents))]
+      (HierSet. nil contains? contents parents))))
 
 (defn hier-set
   "Constructs a set in which the elements are both linearly sorted and may
@@ -313,16 +315,16 @@ contain all elements which sort between it and any descendant element.
 
 Lookup in the set returns a seq of all in-set ancestors of the provided key, or
 nil if the provided key is not a descendant of any set member."
-  ([contains? & keys]
-     (apply hier-set-by contains? compare keys)))
+  [contains? & keys] (apply hier-set-by contains? compare keys))
 
 (defn threeven?
   "Checks if an integral number is evenly divisible by three."
-  ([n] (zero? (mod n 3))))
+  [n] (zero? (mod n 3)))
 
-(defmacro with-acquire [bindings & body]
+(defmacro with-acquire
   "Like with-open, but provide form triples in the binding vector: binding
 target, resource-acquisition form, and resource-release form."
+  [bindings & body]
   (assert-args
     (threeven? (count bindings)) "a threeven number of forms in binding vector")
   (if-not (seq bindings)
