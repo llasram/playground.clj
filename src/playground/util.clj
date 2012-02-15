@@ -267,6 +267,11 @@ each symbol in syms with the bound value of that symbol."
   ([s subs fi] (.indexOf ^String s ^String subs (int fi))))
 
 (deftype HierSet [meta contains? contents parents]
+  ;; meta - the instance's IObj metadata
+  ;; contains? - function for testing if one entity contains another
+  ;; contents - the sorted set of the HierSet's members
+  ;; parents - map of members to their immediate parent members
+
   Object
   (toString [this]
     (str contents))
