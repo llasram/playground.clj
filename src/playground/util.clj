@@ -1,5 +1,6 @@
 (ns playground.util
   (:import [clojure.lang IFn ILookup IObj Seqable]
+           [java.util List]
            [java.util.concurrent BlockingQueue LinkedBlockingQueue TimeUnit]
            [java.lang.ref WeakReference]))
 
@@ -339,3 +340,16 @@ target, resource-acquisition form, and resource-release form."
          (try
            (with-acquire ~more ~@body)
            (finally ~rel))))))
+
+;; Stolen from jackknife
+(defn collectify
+  "If x is not already a collection, wrap it in a vector."
+  [x] (if (or (sequential? x) (instance? List x)) x [x]))
+
+(defmacro with-hof
+  "Call the function hof with the values in args as the second etc arguments,
+and the first argument an anonymous function taking the arguments bindings and
+having the body body."
+  [hof [bindings & args] & body]
+  (let [bindings (vec (collectify bindings))]
+    `(~hof (fn ~bindings ~@body) ~@args)))
