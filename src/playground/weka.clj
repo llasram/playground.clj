@@ -33,13 +33,15 @@
   (create-attribute* [type ^String aname column] (Attribute. aname))
   (attribute-intern [attr val] (double val)))
 
+(defn- nominalize [x]
+  (if (keyword? x) (name x) (str x)))
+
 (defmethod-group :nominal
   (create-attribute* [type ^String aname column]
-    (let [nominalize #(if (keyword? %) (name %) (str %))
-          ^List values (distinct (map nominalize column))]
+    (let [^List values (distinct (map nominalize column))]
       (Attribute. aname values)))
   (attribute-intern [attr val]
-    (doto-let [id (.indexOfValue attr (if (keyword? val) (name val) (str val)))]
+    (doto-let [id (.indexOfValue attr (nominalize val))]
       (when (neg? id)
         (throw (RuntimeException. "invalid nominal value"))))))
 
