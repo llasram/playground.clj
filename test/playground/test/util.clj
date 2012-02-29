@@ -89,6 +89,11 @@
         (is (= '("foo") (hs "foo.baz")))
         (is (= '("foo.bar" "foo") (hs "foo.bar.bar")))))))
 
+(deftest test-bimap
+  (let [bm (bimap :a :b :c :d)]
+    (is (and (= :a (:b bm)) (= :b (:a bm))))
+    (is (and (= :c (:d bm)) (= :d (:c bm))))))
+
 (comment
 
 (defn demo-pmap [& fs]

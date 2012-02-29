@@ -353,3 +353,11 @@ having the body body."
   [hof [bindings & args] & body]
   (let [bindings (vec (collectify bindings))]
     `(~hof (fn ~bindings ~@body) ~@args)))
+
+(defn bimap
+  "Create a bi-directional mapping from the provided key-value pairs, where
+each 'value' also maps to the associated 'key'."
+  [& kvs] (reduce (fn [map [key val]]
+                    (assoc map key val val key))
+                  {}
+                  (partition 2 kvs)))
