@@ -361,3 +361,27 @@ each 'value' also maps to the associated 'key'."
                     (assoc map key val val key))
                   {}
                   (partition 2 kvs)))
+
+(defn longest-run
+  "Find the longest run of the value x in the collection coll.  Returns the
+pair of the starting index and length on success and nil on failure."
+  [x coll]
+  (let [runs (->> (partition-by identity coll)
+                  (reductions (fn [[_ n pos] s]
+                                [(first s) (count s) (+ pos n)])
+                              [nil 0 0])
+                  (drop 1)
+                  (filter #(= x (first %))))]
+    (when (seq runs)
+      (let [[_ n pos] (apply max-key second runs)]
+        [pos n]))))
+
+(defn ubyte
+  "Unsigned number represented by a byte value."
+  {:inline (fn [x] `(bit-and 0xff ~x))}
+  (^long [x] (bit-and 0xff x)))
+
+(defn sbyte
+  "Signed byte representation of an unsigned integral value."
+  {:inline (fn [x] `(byte (let [x# ~x] (if (> x# 127) (- x# 256) x#))))}
+  ([x] (byte (if (> x 127) (- x 256) x))))
